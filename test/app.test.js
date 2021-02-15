@@ -12,12 +12,13 @@ const { GAS } = getConfig();
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 50000;
 
 describe('deploy contract ' + contractName, () => {
-	let alice, bobPublicKey, implicitAccountId;
-    
-	const testMessage = "hello world!";
+	let alice, bob, contractAlice, contractBob, storageMinimum;
 
 	beforeAll(async () => {
 		alice = await getAccount();
+		contractAlice = await getContract(alice);
+		bob = await getAccount();
+		contractBob = await getContract(bob);
 		await initContract(alice.accountId);
 	});
 
@@ -26,48 +27,29 @@ describe('deploy contract ' + contractName, () => {
 		expect(state.code_hash).not.toEqual('11111111111111111111111111111111');
 	});
 
-	test('check create', async () => {
-		const contract = await getContract(alice);
-
-		await contract.create({
-			message: testMessage,
-			amount: parseNearAmount('1'),
-			owner: alice.accountId
-		}, GAS);
-        
-		const accessKeys = await alice.getAccessKeys();
-		const tx = await contract.get_message({ public_key: accessKeys[0].public_key });
-		expect(tx.message).toEqual(testMessage);
+	test('check deposit near to get wNEAR', async () => {
+		storageMinimum = await contractAlice.storage_minimum_balance({});
+		await contractAlice.storage_deposit({}, GAS, storageMinimum);
+		const storageBalance = await contractAlice.storage_balance_of({ account_id: alice.accountId });
+		expect(storageBalance.total).toEqual(storageMinimum);
+		await contractAlice.near_deposit({}, GAS, parseNearAmount('1'));
+		const wNEAR = await contractAlice.ft_balance_of({ account_id: alice.accountId });
+		expect(wNEAR).toEqual(parseNearAmount('1'));
 	});
 
-	test('check create with no near', async () => {
-		const keyPair = KeyPair.fromRandom('ed25519');
-		const public_key = bobPublicKey = keyPair.publicKey.toString();
-		implicitAccountId = Buffer.from(keyPair.publicKey.data).toString('hex');
-
-		// typically done on server (sybil/captcha)
-		await contractAccount.addKey(public_key, contractName, contractMethods.changeMethods, parseNearAmount('0.1'));
-
-		const bob = createAccessKeyAccount(keyPair);
-        
-		const contract = await getContract(bob);
-		await contract.create({
-			message: testMessage,
-			amount: parseNearAmount('1'),
-			owner: implicitAccountId
-		}, GAS);
-        
-		const result = await contract.get_message({ public_key });
-		expect(result.message).toEqual(testMessage);
+	test('check transfer wNEAR', async () => {
+        await contractBob.storage_deposit({}, GAS, storageMinimum);
+		await contractAlice.ft_transfer({ receiver_id: bob.accountId, amount: parseNearAmount('0.5') }, GAS, 1);
+		const wNEAR = await contractAlice.ft_balance_of({ account_id: alice.accountId });
+		expect(wNEAR).toEqual(parseNearAmount('0.5'));
+		const wNEARBob = await contractAlice.ft_balance_of({ account_id: bob.accountId });
+		expect(wNEARBob).toEqual(parseNearAmount('0.5'));
 	});
 
-	test('check purchase and credit bob (implicitAccountId)', async () => {
-		const contract = await getContract(alice);
-		const alicePurchased = await contract.purchase({ public_key: bobPublicKey}, GAS, parseNearAmount('1'));
-		expect(alicePurchased.message).toEqual(testMessage);
-		bob = await getAccount(implicitAccountId);
-		const bobbyBalance = (await bob.state()).amount;
-		expect(bobbyBalance).toEqual(parseNearAmount('1').toString());
+	test('check withdraw wNEAR', async () => {
+		await contractBob.near_withdraw({ amount: parseNearAmount('0.5') }, GAS, 1);
+		const wNEAR = await contractBob.ft_balance_of({ account_id: bob.accountId });
+		expect(wNEAR).toEqual('0');
 	});
 
 });

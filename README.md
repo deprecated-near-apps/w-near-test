@@ -1,30 +1,24 @@
-# Live App Review 1 - App Access Keys
+# WARNING
 
-This repo is a companion to this video:
+Proceed with caution.
 
-[![Live App Review 1 - App Access Keys](https://img.youtube.com/vi/dT99JLpO2Q8/0.jpg)](https://www.youtube.com/watch?v=dT99JLpO2Q8)
+This is ONLY A TEST of the fungible token standard and a wrapped version of NEAR tokens.
 
+Even the repo for the token standard and wrapped NEAR is a WIP branch.
 
-# Feedback (TODO)
+https://github.com/near/core-contracts/tree/w-near-141/w-near-141/src
 
-Will there be an option to test / run app against a contract that is long lived on testnet?
-Use case: shared data sets, more testability, better starting point
-Separate script for shared namespace
+# Quickstart
 
-Server should include warning if config loaded is not current dev account, ping dev folder and crash and restart
+Only the `/test/app.test.js` works.
 
-Step by step high level (matching what's in the frontend)
+`yarn && yarn test:deploy`
 
-Better installation guide / step by
+If you only change the JS tests use `yarn test` after `yarn test:deploy`.
 
-Question: why create brand new dev accounts every time? Why not have a consistent namespace for your app? Destroy / RE-create same name.
-Answer: dev accounts for rapid iteration, then deploy to serious name (accidental deploy over existing account?)
+If you change the contract run `yarn test:deploy` again.
 
-Kitchen Sink
-npm library for near dev build scripts and utils???
-
-
-## Installation
+## Installation (from nearbp boilerplate)
 
 Beyond having npm and node (latest versions), you should have Rust installed. I recommend nightly because living on the edge is fun.
 

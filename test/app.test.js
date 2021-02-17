@@ -5,7 +5,7 @@ const getConfig = require('../src/config');
 const { KeyPair, Account, utils: { format: { parseNearAmount }} } = nearAPI;
 const { 
 	connection, initContract, getAccount, getContract,
-	contractAccount, contractName, contractMethods, createAccessKeyAccount
+	contract, contractAccount, contractName, contractMethods, createAccessKeyAccount
 } = testUtils;
 const { GAS } = getConfig();
 
@@ -22,11 +22,6 @@ describe('deploy contract ' + contractName, () => {
 		await initContract(alice.accountId);
 	});
 
-	test('contract hash', async () => {
-		let state = (await new Account(connection, contractName)).state();
-		expect(state.code_hash).not.toEqual('11111111111111111111111111111111');
-	});
-
 	test('check deposit near to get wNEAR', async () => {
 		storageMinimum = await contractAlice.storage_minimum_balance({});
 		await contractAlice.storage_deposit({}, GAS, storageMinimum);
@@ -37,19 +32,42 @@ describe('deploy contract ' + contractName, () => {
 		expect(wNEAR).toEqual(parseNearAmount('1'));
 	});
 
-	test('check transfer wNEAR', async () => {
+	test('check transfer wNEAR to token contract that requires additional storage', async () => {
         await contractBob.storage_deposit({}, GAS, storageMinimum);
-		await contractAlice.ft_transfer({ receiver_id: bob.accountId, amount: parseNearAmount('0.5') }, GAS, 1);
-		const wNEAR = await contractAlice.ft_balance_of({ account_id: alice.accountId });
-		expect(wNEAR).toEqual(parseNearAmount('0.5'));
-		const wNEARBob = await contractAlice.ft_balance_of({ account_id: bob.accountId });
-		expect(wNEARBob).toEqual(parseNearAmount('0.5'));
+        console.log(storageMinimum)
+        try {
+            await contract.storage_deposit({}, GAS, storageMinimum);
+        } catch (e) {
+            console.warn(e)
+        }
+        // calling a different way to get result of each receipt
+        const result = await alice.functionCall(contractName, 'ft_transfer_call', { receiver_id: contractName, amount: parseNearAmount('0.1'), msg: 'test' }, GAS, storageMinimum)
+
+        // this will fail (cause only 1 yocto attached)
+        const result2 = await alice.functionCall(contractName, 'ft_transfer_call', { receiver_id: contractName, amount: parseNearAmount('0.1'), msg: 'test' }, GAS, 1)
+
+        console.warn(result2)
+        
+        const wNEAR = await contractAlice.ft_balance_of({ account_id: alice.accountId });
+		expect(wNEAR).toEqual(parseNearAmount('0.9'));
+
+        // TODO why no error if callback not payable
+		// const result = await contractAlice.ft_transfer_call({ receiver_id: contractName, amount: parseNearAmount('0.5'), msg: 'test' }, GAS, storageMinimum);
 	});
 
-	test('check withdraw wNEAR', async () => {
-		await contractBob.near_withdraw({ amount: parseNearAmount('0.5') }, GAS, 1);
-		const wNEAR = await contractBob.ft_balance_of({ account_id: bob.accountId });
-		expect(wNEAR).toEqual('0');
-	});
+	// test('check transfer wNEAR', async () => {
+    //     await contractBob.storage_deposit({}, GAS, storageMinimum);
+	// 	const result = await contractAlice.ft_transfer_call({ receiver_id: contractName, amount: parseNearAmount('0.5'), msg: 'test' }, GAS, storageMinimum);
+    //     const wNEAR = await contractAlice.ft_balance_of({ account_id: alice.accountId });
+	// 	expect(wNEAR).toEqual(parseNearAmount('0.5'));
+	// 	const wNEARBob = await contractAlice.ft_balance_of({ account_id: bob.accountId });
+	// 	expect(wNEARBob).toEqual(parseNearAmount('0.5'));
+	// });
+
+	// test('check withdraw wNEAR', async () => {
+	// 	await contractBob.near_withdraw({ amount: parseNearAmount('0.5') }, GAS, 1);
+	// 	const wNEAR = await contractBob.ft_balance_of({ account_id: bob.accountId });
+	// 	expect(wNEAR).toEqual('0');
+	// });
 
 });
